@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "apipj"
+version = "0.1.0"
+description = "API CNPJ gratuita para Python: consultar CNPJ na Receita Federal, validar CNPJ e CNPJ alfanumérico. Razão social, situação, endereço, CNAE, sócios. Plano grátis com 50 mil consultas/mês."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "MASTER BI TECNOLOGIA LTDA" }]
+keywords = [
+  "cnpj",
+  "api cnpj",
+  "api-cnpj",
+  "consulta cnpj",
+  "consultar cnpj",
+  "api cnpj gratuita",
+  "api cnpj gratis",
+  "validar cnpj",
+  "validador cnpj",
+  "cnpj alfanumerico",
+  "receita federal",
+  "api receita federal",
+  "dados abertos",
+  "razao social",
+  "cnae",
+  "simples nacional",
+  "mei",
+  "pessoa juridica",
+  "brasil",
+  "brazil",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: Portuguese (Brazilian)",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Libraries",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://apipj.com.br"
+Documentation = "https://apipj.com.br/docs"
+Guia = "https://apipj.com.br/guias/consultar-cnpj-python"
+Source = "https://github.com/apipj/apipj-py"
+Changelog = "https://github.com/apipj/apipj-py/blob/main/CHANGELOG.md"
+Issues = "https://github.com/apipj/apipj-py/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/apipj"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/apipj",
+  "/tests",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
+
+[tool.mypy]
+strict = true
+files = ["src/apipj"]

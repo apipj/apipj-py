@@ -1,0 +1,56 @@
+name: Publicar no PyPI
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Testes (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Instalar o pacote
+        run: python -m pip install .
+      - name: Conferir que a tag bate com a versão
+        run: |
+          versao=$(python -c "import apipj; print(apipj.__version__)")
+          echo "tag ${GITHUB_REF_NAME}, versão ${versao}"
+          if [ "${GITHUB_REF_NAME}" != "v${versao}" ]; then
+            echo "::error::A tag ${GITHUB_REF_NAME} não bate com a versão ${versao} do pacote"
+            exit 1
+          fi
+      - name: Testes unitários
+        run: python -m unittest discover -s tests -v
+
+  publicar:
+    name: Construir e publicar
+    needs: testes
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/apipj/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Construir sdist e wheel
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: Publicar no PyPI (trusted publishing, sem token)
+        uses: pypa/gh-action-pypi-publish@release/v1
