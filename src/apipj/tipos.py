@@ -317,10 +317,15 @@ class LimiteJanela(TypedDict):
 
 
 class Limites(TypedDict):
-    """Cabeçalhos ``X-RateLimit-*`` (``por_minuto``) e ``X-Quota-*`` (``mensal``) da última consulta."""
+    """Cabeçalhos ``X-RateLimit-*`` (``por_minuto``), ``X-Quota-*`` (``mensal``) e, sem chave, ``X-Daily-*``
+    (``diario``) da última consulta."""
 
+    sem_chave: bool
+    """``True`` quando a consulta foi feita sem chave (limite de teste por IP)."""
     por_minuto: LimiteJanela
     mensal: LimiteJanela
+    diario: LimiteJanela
+    """Só sem chave: limite por dia por IP; ``reset`` em epoch Unix."""
 
 
 class ResultadoLote(TypedDict):

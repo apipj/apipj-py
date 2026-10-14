@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import warnings
 from typing import Any, Dict, Iterable, Iterator, Literal, Mapping, Optional, Set, Tuple, Union, cast, overload
 
 from ._limitador import Cancelado, Limitador
@@ -39,6 +40,8 @@ _FORMATOS = ("completo", "simplificado")
 #: erros que valeriam para todos os CNPJs seguintes: ``consultar_varios`` para na hora
 _FATAIS = frozenset({"unauthorized", "quota_exceeded"})
 _USER_AGENT = f"apipj-python/{__version__}"
+#: cadastro da chave grátis, com a origem desta biblioteca (o servidor mede o canal de captação)
+URL_CADASTRO = "https://apipj.com.br/criar-conta?origem=api-lib-pypi-apipj"
 
 
 class _Segredo:
@@ -99,6 +102,7 @@ class Apipj:
         *,
         espera_base: float = 1.0,
         janela: float = 60.0,
+        avisos: bool = True,
     ) -> None:
         self._chave: Optional[_Segredo] = _Segredo(chave.strip()) if chave and chave.strip() else None
         #: URL base da API, sem barra no fim
@@ -109,8 +113,10 @@ class Apipj:
         self.tentativas: int = max(1, int(tentativas or 1))
         self.espera_base: float = float(espera_base)
         self.janela: float = float(janela)
-        #: limites informados pela última consulta autenticada (``X-RateLimit-*`` e ``X-Quota-*``)
+        #: limites informados pela última consulta (``X-RateLimit-*``, ``X-Quota-*`` e, sem chave, ``X-Daily-*``)
         self.limites: Optional[Limites] = None
+        self._avisos = avisos is not False
+        self._avisou_sem_chave = False
         self._abridor = urllib.request.build_opener()
 
     def __repr__(self) -> str:
@@ -333,18 +339,24 @@ class Apipj:
             raise _erro_da_resposta(res)
         return _exigir_json(res)
 
-    def _obter_chave(self) -> str:
+    def _obter_chave(self) -> Optional[str]:
+        """Chave do argumento ou de APIPJ_KEY; sem nenhuma, ``None`` (consulta sem chave, com limite de teste)."""
         if self._chave is not None:
             return self._chave.revelar()
         chave = (os.environ.get("APIPJ_KEY") or "").strip()
-        if not chave:
-            raise ApipjErro(
-                401,
-                "unauthorized",
-                "Chave de API ausente: use Apipj(chave=...) ou defina a variável de ambiente APIPJ_KEY. "
-                "Conta grátis em https://apipj.com.br/criar-conta",
-            )
-        return chave
+        return chave or None
+
+    def _avisar_sem_chave(self) -> None:
+        if self._avisou_sem_chave or not self._avisos:
+            return
+        self._avisou_sem_chave = True
+        warnings.warn(
+            "apipj: consultando sem chave de API (limite de teste por IP: poucas consultas por minuto e por dia). "
+            f"Crie uma chave grátis, com 10 consultas por minuto e 50 mil por mês, em {URL_CADASTRO} e use "
+            "Apipj(chave=...) ou APIPJ_KEY. Para não ver este aviso: Apipj(avisos=False).",
+            UserWarning,
+            stacklevel=4,
+        )
 
     def _requisitar(
         self, caminho: str, *, autenticar: bool = False, limitador: Optional[Limitador] = None
@@ -352,6 +364,8 @@ class Apipj:
         """Faz a chamada com repetição: 429 ``rate_limited`` espera Retry-After; 5xx e rede, backoff
         1 s, 2 s... Devolve a resposta 2xx ou 404 com o corpo já lido; demais status viram ApipjErro."""
         chave = self._obter_chave() if autenticar else None
+        if autenticar and chave is None:
+            self._avisar_sem_chave()
         url = self.base_url + caminho
         dormir = limitador.dormir if limitador is not None else time.sleep
 
@@ -441,11 +455,14 @@ class Apipj:
 
         limite = h("X-RateLimit-Limit")
         cota = h("X-Quota-Limit")
-        if limite is None and cota is None:
+        diario = h("X-Daily-Limit")
+        if limite is None and cota is None and diario is None:
             return
         self.limites = {
+            "sem_chave": (res.cabecalho("X-Apipj-Acesso") or "").lower() == "sem-chave",
             "por_minuto": {"limite": limite, "restante": h("X-RateLimit-Remaining"), "reset": h("X-RateLimit-Reset")},
             "mensal": {"limite": cota, "restante": h("X-Quota-Remaining"), "reset": h("X-Quota-Reset")},
+            "diario": {"limite": diario, "restante": h("X-Daily-Remaining"), "reset": h("X-Daily-Reset")},
         }
 
 
@@ -487,6 +504,7 @@ def _erro_da_resposta(res: _Resposta) -> ApipjErro:
         if retry_after is None:
             retry_after = _numero(c.get("retry_after"))
     upgrade_url = c.get("upgrade_url")
+    signup_url = c.get("signup_url")
     reset = _numero(c.get("reset"))
     cnpj = c.get("cnpj")
     return ApipjErro(
@@ -495,6 +513,7 @@ def _erro_da_resposta(res: _Resposta) -> ApipjErro:
         message,
         retry_after=retry_after,
         upgrade_url=upgrade_url if isinstance(upgrade_url, str) else None,
+        signup_url=signup_url if isinstance(signup_url, str) else None,
         reset=int(reset) if reset is not None else None,
         cnpj=cnpj if isinstance(cnpj, str) else None,
         details=c.get("details"),

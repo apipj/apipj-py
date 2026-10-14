@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 import unittest
+import warnings
 from email.utils import formatdate
 from typing import Any, Dict
 from unittest import mock
@@ -73,8 +74,10 @@ class TestConsultar(Base):
         self.assertEqual(
             api.limites,
             {
+                "sem_chave": False,
                 "por_minuto": {"limite": 10, "restante": 9, "reset": 6},
                 "mensal": {"limite": 50000, "restante": 49999, "reset": 1793502000},
+                "diario": {"limite": None, "restante": None, "reset": None},
             },
         )
 
@@ -103,15 +106,38 @@ class TestConsultar(Base):
         self.srv.tratador = lambda req, n: json_(200, documento(CNPJ))
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("APIPJ_KEY", None)
-            api = Apipj(base_url=self.srv.url)
-            with self.assertRaises(ApipjErro) as ctx:
+            api = Apipj(base_url=self.srv.url, tentativas=1)
+            with warnings.catch_warnings(record=True) as avisos:
+                warnings.simplefilter("always")
                 api.consultar(CNPJ)
-            e = self.assertErro(ctx, status=401, code="unauthorized")
-            self.assertIn("APIPJ_KEY", e.message)
-            self.assertEqual(len(self.srv.requisicoes), 0)
+                api.consultar(CNPJ)
+                Apipj(base_url=self.srv.url, avisos=False).consultar(CNPJ)
+            self.assertEqual(len(self.srv.requisicoes), 3)
+            self.assertNotIn("authorization", self.srv.requisicoes[0]["headers"])
+            self.assertEqual(len(avisos), 1, "avisa uma vez só, e avisos=False cala")
+            self.assertIn("criar-conta?origem=api-lib-pypi-apipj", str(avisos[0].message))
             os.environ["APIPJ_KEY"] = "apipj_live_do_ambiente\n"
             api.consultar(CNPJ)
-            self.assertEqual(self.srv.requisicoes[0]["headers"]["authorization"], "Bearer apipj_live_do_ambiente")
+            self.assertEqual(self.srv.requisicoes[3]["headers"]["authorization"], "Bearer apipj_live_do_ambiente")
+
+    def test_sem_chave_limite_vira_429_com_signup_url(self) -> None:
+        cad = "https://apipj.com.br/criar-conta?origem=api-lib-pypi-apipj"
+        cab = {"X-Apipj-Acesso": "sem-chave", "X-RateLimit-Limit": "3", "X-RateLimit-Remaining": "2", "X-RateLimit-Reset": "1",
+               "X-Daily-Limit": "100", "X-Daily-Remaining": "99", "X-Daily-Reset": "1793502000"}
+        corpo = {"status": "ERROR", "message": f"Limite diário sem chave de API: 100 consultas. Crie uma chave grátis: {cad}",
+                 "code": "quota_exceeded", "signup_url": cad, "reset": 1793502000}
+        self.srv.tratador = lambda req, n: json_(200, documento(CNPJ), cab) if n == 1 else json_(429, corpo)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("APIPJ_KEY", None)
+            api = Apipj(base_url=self.srv.url, avisos=False)
+            api.consultar(CNPJ)
+            assert api.limites is not None
+            self.assertTrue(api.limites["sem_chave"])
+            self.assertEqual(api.limites["diario"], {"limite": 100, "restante": 99, "reset": 1793502000})
+            with self.assertRaises(ApipjErro) as ctx:
+                api.consultar(CNPJ)
+            e = self.assertErro(ctx, status=429, code="quota_exceeded")
+            self.assertEqual(e.signup_url, cad)
 
     def test_chave_nao_aparece_no_repr(self) -> None:
         api = self.cliente()

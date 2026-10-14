@@ -19,7 +19,8 @@ class ApipjErro(Exception):
       ``network_error``, ``timeout``, ``invalid_response``...).
     - ``message``: mensagem em português.
     - ``retry_after``: segundos a esperar (só em ``rate_limited``).
-    - ``upgrade_url``: página de planos (só em ``quota_exceeded``).
+    - ``upgrade_url``: página de planos (``quota_exceeded`` e ``rate_limited`` com chave).
+    - ``signup_url``: página para criar a chave grátis (429 da consulta sem chave, ou 401 com ela fechada).
     - ``reset``: epoch Unix (segundos) em que a cota mensal zera (só em ``quota_exceeded``).
     - ``cnpj``: entrada normalizada (só em ``invalid_cnpj``).
     - ``details``: detalhes de ``validation_error``.
@@ -31,6 +32,7 @@ class ApipjErro(Exception):
     message: str
     retry_after: Optional[float]
     upgrade_url: Optional[str]
+    signup_url: Optional[str]
     reset: Optional[int]
     cnpj: Optional[str]
     details: Any
@@ -44,6 +46,7 @@ class ApipjErro(Exception):
         *,
         retry_after: Optional[float] = None,
         upgrade_url: Optional[str] = None,
+        signup_url: Optional[str] = None,
         reset: Optional[int] = None,
         cnpj: Optional[str] = None,
         details: Any = None,
@@ -55,6 +58,7 @@ class ApipjErro(Exception):
         self.message = message
         self.retry_after = retry_after
         self.upgrade_url = upgrade_url
+        self.signup_url = signup_url
         self.reset = reset
         self.cnpj = cnpj
         self.details = details
@@ -77,6 +81,7 @@ class ApipjErro(Exception):
                 {
                     "retry_after": self.retry_after,
                     "upgrade_url": self.upgrade_url,
+                    "signup_url": self.signup_url,
                     "reset": self.reset,
                     "cnpj": self.cnpj,
                     "details": self.details,

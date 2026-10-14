@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "apipj"
-version = "0.1.0"
+version = "0.2.0"
 description = "API CNPJ gratuita para Python: consultar CNPJ na Receita Federal, validar CNPJ e CNPJ alfanumérico. Razão social, situação, endereço, CNAE, sócios. Plano grátis com 50 mil consultas/mês."
 readme = "README.md"
 requires-python = ">=3.9"

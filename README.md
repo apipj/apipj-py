@@ -15,7 +15,7 @@
 pip install apipj
 ```
 
-Crie uma conta grátis em [apipj.com.br/criar-conta](https://apipj.com.br/criar-conta), gere a chave no painel e exporte-a:
+**Para testar, não precisa de chave:** sem `APIPJ_KEY`, `consultar` usa a consulta sem chave da API, com limite de teste por IP (hoje 3 consultas por minuto e 100 por dia), e emite um aviso (`UserWarning`) uma vez. Para uso real, crie uma conta grátis em [apipj.com.br/criar-conta](https://apipj.com.br/criar-conta?origem=api-lib-pypi-apipj) (10 consultas por minuto e 50 mil por mês, sem cartão), gere a chave no painel e exporte-a:
 
 ```bash
 export APIPJ_KEY=apipj_live_...
@@ -113,9 +113,9 @@ def buscar(cnpj: str) -> str:
     except ApipjErro as e:
         if e.code == "invalid_cnpj":      # 400: formato ou dígito inválido (verificado antes de chamar a API)
             return f"CNPJ inválido: {e.message}"
-        if e.code == "unauthorized":      # 401: chave ausente, inválida ou revogada
+        if e.code == "unauthorized":      # 401: chave inválida ou revogada (ou consulta sem chave fechada; e.signup_url)
             return "Confira a variável APIPJ_KEY"
-        if e.code == "quota_exceeded":    # 429: cota mensal esgotada; e.upgrade_url e e.reset (epoch)
+        if e.code == "quota_exceeded":    # 429: cota mensal esgotada (e.upgrade_url, e.reset) ou, sem chave, limite do dia (e.signup_url)
             return f"Cota do mês esgotada; planos em {e.upgrade_url}"
         if e.code == "rate_limited":      # 429: limite por minuto mesmo depois de esperar Retry-After
             return f"Tente de novo em {e.retry_after} s"
