@@ -176,17 +176,24 @@ class TestConsultarVarios(unittest.TestCase):
         time.sleep(0.15)
         self.assertEqual(len(self.srv.requisicoes), 1, "a sonda falhou; ninguém mais chamou a API")
 
-    def test_sem_chave_interrompe_sem_chamar_a_api(self) -> None:
-        api = Apipj(chave=None, base_url=self.srv.url)
+    def test_sem_chave_usa_a_consulta_sem_chave_e_para_no_limite_do_dia(self) -> None:
+        cad = "https://apipj.com.br/criar-conta?origem=api-lib-pypi-apipj"
+        self.srv.tratador = lambda req, n: json_(
+            429,
+            {"status": "ERROR", "message": "Limite diário sem chave de API: 100 consultas.", "code": "quota_exceeded", "signup_url": cad, "reset": 1793502000},
+        )
+        api = Apipj(chave=None, base_url=self.srv.url, avisos=False)
         import os
         from unittest import mock
 
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("APIPJ_KEY", None)
             with self.assertRaises(ApipjErro) as ctx:
-                list(api.consultar_varios(gerar_cnpjs(5)))
-        self.assertEqual(ctx.exception.code, "unauthorized")
-        self.assertEqual(len(self.srv.requisicoes), 0)
+                list(api.consultar_varios(gerar_cnpjs(5), simultaneas=1))
+        self.assertEqual(ctx.exception.code, "quota_exceeded")
+        self.assertEqual(ctx.exception.signup_url, cad)
+        self.assertGreaterEqual(len(self.srv.requisicoes), 1)
+        self.assertTrue(all("authorization" not in r["headers"] for r in self.srv.requisicoes), "sem chave: sem Authorization")
 
     def test_cota_esgotada_entrega_o_que_ficou_pronto_e_lanca(self) -> None:
         self.srv.tratador = lambda req, n: (
